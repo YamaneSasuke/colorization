@@ -21,7 +21,7 @@ if __name__ == '__main__':
     alphabet = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','r','s','t','u','v','w','y']
     f = open("file_list.txt", "w")
     for i in range(23):
-        path = '/Users/yamane/Desktop/dataset/data/vision/torralba/deeplearning/images256/'
+        path = r"C:\Users\yamane\Desktop\dataset\data\vision\torralba\deeplearning\images256"
         path = os.path.join(path, str(alphabet[i]))
         label_list = glob.glob(os.path.join(path, '*'))
         for label in label_list:
