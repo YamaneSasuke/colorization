@@ -5,25 +5,39 @@ Created on Tue Sep 06 16:14:41 2016
 @author: yamane
 """
 
-import numpy as np
-from skimage import io, transform
 import os
+from skimage import io, transform
 
-if __name__ == '__main__':
-    alphabet = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','r','s','t','u','v','w','y']
+
+def build_resized_dataset(output_size=224, data_location='', quality=100):
+    output_dir_name = 'resized_dataset_' + str(output_size)
+    output_root_dir = os.path.join(data_location, output_dir_name)
+    if os.path.exists(output_root_dir):
+        print u"すでに存在するため終了します."
+        return
+    else:
+        os.makedirs(output_root_dir)
+
     f = open("file_list.txt", "r")
-    i = 0
     for path in f:
         path = path.strip()
-        image_hwc_nomal = io.imread(path)
-        image_hwc = transform.resize(image_hwc_nomal, (224, 224))
-        root = r'\Users\yamane\Desktop\new_dataset'
-        initial = path.split('\\')[10: -1]
-        new_path = os.path.join(root, *initial)
-        if not os.path.exists(new_path):
-            os.makedirs(new_path)
-        file_name = path.split('\\')[-1]
-        save_path = os.path.join(new_path, file_name)
-        io.imsave(save_path, image_hwc, quality=100)
-        i = i + 1
+        dirs = path.split('\\')
+        file_name = dirs[-1]
+        images256_index = dirs.index('images256')
+
+        image = io.imread(path)
+        image_resized = transform.resize(image, (output_size, output_size))
+        sub_dirs = dirs[images256_index+1: -1]
+        output_dir_path = os.path.join(output_root_dir, *sub_dirs)
+        if not os.path.exists(output_dir_path):
+            os.makedirs(output_dir_path)
+        save_path = os.path.join(output_dir_path, file_name)
+        io.imsave(save_path, image_resized, quality=quality)
     f.close()
+
+if __name__ == '__main__':
+    output_size = 56
+    data_location = r'\Users\yamane\Desktop\dataset'
+    quality = 100
+
+    build_resized_dataset(output_size, data_location, quality)
