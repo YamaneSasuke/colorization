@@ -17,7 +17,7 @@ def rgb_hwc2hsv_chw(image):
 
 
 if __name__ == '__main__':
-    data_location = r'\Users\yamane\Dropbox\colorization'
+    data_location = r'C:\Users\yamane\Desktop\dataset'
     dataset_root_dir = r'data\vision\torralba\deeplearning\images256'
     root_dir_path = os.path.join(data_location, dataset_root_dir)
     f = open("file_list.txt", "w")
@@ -29,6 +29,6 @@ if __name__ == '__main__':
                 continue
             hsv_chw = rgb_hwc2hsv_chw(image)
             s = hsv_chw[1]
-            if s.std() >= 0.14:
+            if s.std() >= 0.20:
                 f.write(file_path + "\n")
     f.close()
