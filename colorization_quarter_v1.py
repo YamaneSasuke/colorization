@@ -75,8 +75,7 @@ class Colorizationnet(Chain):
         )
 
     def low_level_features_network(self, X, test):
-        x = Variable(X.reshape(-1, 1, 56, 56))
-        h = F.relu(self.lnorm1(self.lconv1(x), test=test))
+        h = F.relu(self.lnorm1(self.lconv1(X), test=test))
         h = F.relu(self.lnorm2(self.lconv2(h), test=test))
         h = F.relu(self.lnorm3(self.lconv3(h), test=test))
         h = F.relu(self.lnorm4(self.lconv4(h), test=test))
@@ -92,7 +91,7 @@ class Colorizationnet(Chain):
         h = F.relu(self.gnorm5(self.gl1(h), test=test))
         h_global = F.relu(self.gnorm6(self.gl2(h), test=test))
         h_class = F.relu(self.classnorm1(self.classl1(h_global), test=test))
-        y_class = F.relu(self.classl2(h_class))
+        y_class = self.classl2(h_class)
         y_global = F.relu(self.gnorm7(self.gl3(h_global), test=test))
         return y_global, y_class
 
@@ -115,7 +114,7 @@ class Colorizationnet(Chain):
         h = F.relu(self.cnorm3(self.cconv3(h), test=test))
         h = F.unpooling_2d(h, 2, outsize=[28, 28])
         h = F.relu(self.cnorm4(self.cconv4(h), test=test))
-        h = F.sigmoid(self.onorm(self.output(h), test=test))
+        h = F.tanh(self.onorm(self.output(h), test=test))
         y = F.unpooling_2d(h, 2, outsize=[56, 56])
         return y
 
@@ -128,78 +127,78 @@ class Colorizationnet(Chain):
 
     def lossfun(self, X, T_color, T_class, a, test):
         y_color, y_class = self.forward(X, test)
-        loss_color = F.mean_squared_error(y_color[0], T_color)
-        loss_class = F.sigmoid_cross_entropy(y_class[0], T_class)
+        loss_color = F.mean_squared_error(y_color, T_color)
+        loss_class = F.sigmoid_cross_entropy(y_class, T_class)
         loss = loss_color + a * loss_class
         return loss
 
     def y_color(self, X, test):
-        h = self.low_level_features_network(X, test)
-        h_local = self.mid_level_features_network(h, test)
-        h_global, y_class = self.global_features_network(h, test)
-        y = self.colorization_network(h_local, h_global, test)
-        return y
+        y_color, y_class = self.forward(X, test)
+        return y_color
 
-    def predict(self, X, test):
+    def l2rgb(self, X, test):
         y_color = self.y_color(X, test)
-        y_color = y_color.data[0]
-        gray_rgb = color.gray2rgb(X)
-        gray_lab = color.rgb2lab(gray_rgb)
-
-        for h in range(56):
-            for w in range(56):
-                for c in range(1, 3):
-                    gray_lab[h][w][c] = y_color[c-1][h][w]
-
-        predict_image = color.lab2rgb(gray_lab)
-        io.imshow(predict_image)
+        X_cpu = (cuda.to_cpu(X) + 0.5) * 100
+        X_clip = np.clip(X_cpu, 0, 100)
+        y_color_cpu = cuda.to_cpu(y_color.data) * 100
+        y_color_clip = np.clip(y_color_cpu, -110, 110)
+        lab_bchw = np.concatenate((X_clip, y_color_clip), axis=1)
+        lab_bhwc = np.transpose(lab_bchw, (0, 2, 3, 1))
+        lab_bhwc_float64 = lab_bhwc.astype(np.float64)
+        rgb_images = []
+        for lab in lab_bhwc_float64:
+            rgb_image = color.lab2rgb(lab)
+            rgb_images.append(rgb_image)
+        return rgb_images
 
 if __name__ == '__main__':
     # 超パラメータ
-    max_iteration = 1600  # 繰り返し回数
-    batch_size = 100  # ミニバッチサイズ
-    learning_rate = 0.001  # 学習率
+    max_iteration = 1000  # 繰り返し回数
+    learning_rate = 0.1  # 学習率
     a = 0
+#    batch_size = 1  # ミニバッチサイズ
+
+    path = r"C:\Users\yamane\Dropbox\colorization\dataset"
+    data_location = r'\Users\yamane\Desktop\dataset'
+    images = []
+    losses = []
 
     model = Colorizationnet().to_gpu()
     # Optimizerの設定
     optimizer = optimizers.Adam(learning_rate)
     optimizer.setup(model)
 
-    images = []
-    path = r"C:\Users\yamane\Dropbox\colorization\dataset"
     file_list = glob.glob(os.path.join(path, '*.jpg'))
     for image_path in file_list:
         image = io.imread(image_path)
         images.append(image)
     X = np.stack(images, axis=0)
 
-#    image = io.imread("sample56.jpg")
-    X_gray = color.rgb2gray(X)
-    X_lab = color.rgb2lab(X)
-    X_lab = np.transpose(X_lab, (0, 3, 1, 2))
-    X_gray_gpu = cuda.to_gpu(X_gray)
-    X_gray_gpu = X_gray_gpu.astype(np.float32)
+    X_lab_bhwc = color.rgb2lab(X)
+    X_lab_bchw = np.transpose(X_lab_bhwc, (0, 3, 1, 2))
+    X_l_normalized = (X_lab_bchw[:, 0:1, :, :] / 100) - 0.5
+    X_l_gpu = cuda.to_gpu(X_l_normalized)
+    X_l_gpu_float32 = X_l_gpu.astype(np.float32)
 
-    low = model.low_level_features_network(X_gray_gpu, False)
-    gl, cl = model.global_features_network(low, False)
-    mid = model.mid_level_features_network(low, False)
-    y = model.colorization_network(mid, gl, False)
-    y_color, y_class = model.forward(X_gray_gpu, False)
+#    low = model.low_level_features_network(X_l_gpu_float32, False)
+#    gl, cl = model.global_features_network(low, False)
+#    mid = model.mid_level_features_network(low, False)
+#    y = model.colorization_network(mid, gl, False)
+#    y_color, y_class = model.forward(X_l_gpu_float32, False)
 
-    t_color = cuda.to_gpu(X_lab[:, 1:, :, :])
-    t_color = t_color.astype(np.float32)
-    t_class = np.zeros(205)
-    t_class = cuda.to_gpu(t_class.astype(np.int32))
+    T_color = cuda.to_gpu(X_lab_bchw[:, 1:3, :, :])
+    T_color = T_color.astype(np.float32)
+    T_color = T_color / 100
+    T_class = np.zeros((len(X), 205))
+    T_class = cuda.to_gpu(T_class.astype(np.int32))
 
-    losses = []
     try:
 
         for epoch in range(max_iteration):
-            # 勾配を初期化
+            # 勾配を初期化s
             optimizer.zero_grads()
             # 順伝播を計算し、誤差と精度を取得
-            loss = model.lossfun(X_gray_gpu, t_color, t_class, a, False)
+            loss = model.lossfun(X_l_gpu_float32, T_color, T_class, a, False)
             # 逆伝搬を計算
             loss.backward()
             optimizer.update()
@@ -216,4 +215,11 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print "割り込み停止が実行されました"
 
-    model.predict(X_gray_gpu, False)
+    predict_images = model.l2rgb(X_l_gpu_float32, False)
+    for original_image, predict_image in zip(images[0:10],
+                                             predict_images[0:10]):
+        plt.subplot(1, 2, 1)
+        plt.imshow(original_image)
+        plt.subplot(1, 2, 2)
+        plt.imshow(predict_image)
+        plt.show()
