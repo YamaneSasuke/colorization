@@ -130,7 +130,7 @@ class Colorizationnet(Chain):
         loss_color = F.mean_squared_error(y_color, T_color)
         loss_class = F.sigmoid_cross_entropy(y_class, T_class)
         loss = loss_color + (a * loss_class)
-        return loss
+        return loss, loss_color, loss_class
 
     def y_color(self, X, test):
         y_color, y_class = self.forward(X, test)
@@ -155,12 +155,14 @@ if __name__ == '__main__':
     # 超パラメータ
     max_iteration = 1000  # 繰り返し回数
     learning_rate = 0.1  # 学習率
-    a = 1
+    a = 1.0
 #    batch_size = 1  # ミニバッチサイズ
 
     data_location = r'C:\Users\yamane\Dropbox\colorization\dataset'
     images = []
     losses = []
+    loss_colors = []
+    loss_classes = []
     class_list = []
 
     model = Colorizationnet().to_gpu()
@@ -206,17 +208,28 @@ if __name__ == '__main__':
             # 勾配を初期化s
             optimizer.zero_grads()
             # 順伝播を計算し、誤差と精度を取得
-            loss = model.lossfun(X_l_gpu_float32, T_color, T_class, a, False)
+            loss, loss_color, loss_class = model.lossfun(X_l_gpu_float32,
+                                                         T_color, T_class,
+                                                         a, False)
             # 逆伝搬を計算
             loss.backward()
             optimizer.update()
             loss.data = cuda.to_cpu(loss.data)
+            loss_color.data = cuda.to_cpu(loss_color.data)
+            loss_class.data = cuda.to_cpu(loss_class.data)
             losses.append(loss.data)
+            loss_colors.append(loss_color.data)
+            loss_classes.append(loss_class.data)
             # 訓練データでの結果を表示
             print "epoch:", epoch
             print "loss:", losses[epoch]
+            print "loss_color:", loss_colors[epoch]
+            print "loss_class:", loss_classes[epoch]
             plt.plot(losses)
+            plt.plot(loss_colors)
+            plt.plot(loss_classes)
             plt.title("loss")
+            plt.legend(["loss", "color", "class"], loc="upper right")
             plt.grid()
             plt.show()
 
