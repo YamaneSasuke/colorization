@@ -5,16 +5,14 @@ Created on Mon Sep 05 13:01:00 2016
 @author: yamane
 """
 
+import os
 import numpy as np
-from chainer import cuda, Variable, optimizers, Chain
+from chainer import cuda, optimizers, Chain
 import chainer.functions as F
 import chainer.links as L
-from sklearn.cross_validation import train_test_split
-from sklearn import preprocessing
 import matplotlib.pyplot as plt
-from skimage import color, data, io
-import glob
-import os
+from skimage import color, io
+import time
 
 
 # ネットワークの定義
@@ -132,14 +130,35 @@ class Colorizationnet(Chain):
         loss = loss_color + (a * loss_class)
         return loss, loss_color, loss_class
 
+    def loss_ave(self, X, T_color, T_class, a, test):
+        losses = []
+        loss_colors = []
+        loss_classes = []
+        total_data = np.arange(len(X))
+        for indexes in np.array_split(total_data, num_batches):
+            X_batch = cuda.to_gpu(X[indexes])
+            T_color_batch = cuda.to_gpu(T_color[indexes])
+            T_class_batch = cuda.to_gpu(T_class[indexes])
+            loss, loss_color, loss_class = self.lossfun(X_batch,
+                                                        T_color_batch,
+                                                        T_class_batch,
+                                                        a, test)
+            loss_cpu = cuda.to_cpu(loss.data)
+            loss_color_cpu = cuda.to_cpu(loss_color.data)
+            loss_class_cpu = cuda.to_cpu(loss_class.data)
+            losses.append(loss_cpu)
+            loss_colors.append(loss_color_cpu)
+            loss_classes.append(loss_class_cpu)
+        return np.mean(losses), np.mean(loss_colors), np.mean(loss_classes)
+
     def y_color(self, X, test):
         y_color, y_class = self.forward(X, test)
         return y_color
 
     def l2rgb(self, X, test):
-        y_color = self.y_color(X, test)
-        X_cpu = (cuda.to_cpu(X) + 0.5) * 100
-        X_clip = np.clip(X_cpu, 0, 100)
+        y_color = self.y_color(cuda.to_gpu(X), test)
+        X = (X + 0.5) * 100
+        X_clip = np.clip(X, 0, 100)
         y_color_cpu = cuda.to_cpu(y_color.data) * 100
         y_color_clip = np.clip(y_color_cpu, -110, 110)
         lab_bchw = np.concatenate((X_clip, y_color_clip), axis=1)
@@ -155,8 +174,8 @@ if __name__ == '__main__':
     # 超パラメータ
     max_iteration = 1000  # 繰り返し回数
     learning_rate = 0.1  # 学習率
-    a = 1.0
-#    batch_size = 1  # ミニバッチサイズ
+    a = 2.0
+    batch_size = 100  # ミニバッチサイズ
 
     data_location = r'C:\Users\yamane\Dropbox\colorization\dataset'
     images = []
@@ -180,13 +199,11 @@ if __name__ == '__main__':
             class_list.append(dirs[dataset_index+1])
     X = np.stack(images, axis=0)
     class_uniq = list(set(class_list))
-    class_num = len(class_uniq)
 
     X_lab_bhwc = color.rgb2lab(X)
     X_lab_bchw = np.transpose(X_lab_bhwc, (0, 3, 1, 2))
     X_l_normalized = (X_lab_bchw[:, 0:1, :, :] / 100) - 0.5
-    X_l_gpu = cuda.to_gpu(X_l_normalized)
-    X_l_gpu_float32 = X_l_gpu.astype(np.float32)
+    X_l_float32 = X_l_normalized.astype(np.float32)
 
 #    low = model.low_level_features_network(X_l_gpu_float32, False)
 #    gl, cl = model.global_features_network(low, False)
@@ -194,34 +211,50 @@ if __name__ == '__main__':
 #    y = model.colorization_network(mid, gl, False)
 #    y_color, y_class = model.forward(X_l_gpu_float32, False)
 
-    T_color = cuda.to_gpu(X_lab_bchw[:, 1:3, :, :])
+    T_color = X_lab_bchw[:, 1:3, :, :]
     T_color = T_color.astype(np.float32)
-    T_color = T_color / 100
+    T_color = T_color / 50
     T_class = np.zeros((len(X), 205))
     for i in range(len(X)):
         T_class[i, class_uniq.index(class_list[i])] = 1
-    T_class = cuda.to_gpu(T_class.astype(np.int32))
+    T_class = T_class.astype(np.int32)
 
+    num_batches = len(X_l_float32) / batch_size
+
+    time_origin = time.time()
     try:
 
         for epoch in range(max_iteration):
-            # 勾配を初期化s
-            optimizer.zero_grads()
-            # 順伝播を計算し、誤差と精度を取得
-            loss, loss_color, loss_class = model.lossfun(X_l_gpu_float32,
-                                                         T_color, T_class,
-                                                         a, False)
-            # 逆伝搬を計算
-            loss.backward()
-            optimizer.update()
-            loss.data = cuda.to_cpu(loss.data)
-            loss_color.data = cuda.to_cpu(loss_color.data)
-            loss_class.data = cuda.to_cpu(loss_class.data)
-            losses.append(loss.data)
-            loss_colors.append(loss_color.data)
-            loss_classes.append(loss_class.data)
+            time_begin = time.time()
+            permu = np.random.permutation(len(X_l_float32))
+            for indexes in np.array_split(permu, num_batches):
+                X_batch = cuda.to_gpu(X_l_float32[indexes])
+                T_color_batch = cuda.to_gpu(T_color[indexes])
+                T_class_batch = cuda.to_gpu(T_class[indexes])
+                # 勾配を初期化s
+                optimizer.zero_grads()
+                # 順伝播を計算し、誤差と精度を取得
+                loss, loss_color, loss_class = model.lossfun(X_batch,
+                                                             T_color_batch,
+                                                             T_class_batch,
+                                                             a, False)
+                # 逆伝搬を計算
+                loss.backward()
+                optimizer.update()
+
+            time_end = time.time()
+            epoch_time = time_end - time_begin
+            total_time = time_end - time_origin
+            loss, loss_color, loss_class = model.loss_ave(X_l_float32,
+                                                          T_color,
+                                                          T_class,
+                                                          a, False)
+            losses.append(loss)
+            loss_colors.append(loss_color)
+            loss_classes.append(loss_class)
             # 訓練データでの結果を表示
             print "epoch:", epoch
+            print "time", epoch_time, "(", total_time, ")"
             print "loss:", losses[epoch]
             print "loss_color:", loss_colors[epoch]
             print "loss_class:", loss_classes[epoch]
@@ -236,7 +269,7 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print "割り込み停止が実行されました"
 
-    predict_images = model.l2rgb(X_l_gpu_float32, False)
+    predict_images = model.l2rgb(X_l_float32, False)
     for original_image, predict_image in zip(images[0:5],
                                              predict_images[0:5]):
         plt.subplot(1, 2, 1)
