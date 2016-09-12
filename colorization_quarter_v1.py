@@ -129,7 +129,7 @@ class Colorizationnet(Chain):
         y_color, y_class = self.forward(X, test)
         loss_color = F.mean_squared_error(y_color, T_color)
         loss_class = F.sigmoid_cross_entropy(y_class, T_class)
-        loss = loss_color + a * loss_class
+        loss = loss_color + (a * loss_class)
         return loss
 
     def y_color(self, X, test):
@@ -155,24 +155,30 @@ if __name__ == '__main__':
     # 超パラメータ
     max_iteration = 1000  # 繰り返し回数
     learning_rate = 0.1  # 学習率
-    a = 0
+    a = 1
 #    batch_size = 1  # ミニバッチサイズ
 
-    path = r"C:\Users\yamane\Dropbox\colorization\dataset"
-    data_location = r'\Users\yamane\Desktop\dataset'
+    data_location = r'C:\Users\yamane\Dropbox\colorization\dataset'
     images = []
     losses = []
+    class_list = []
 
     model = Colorizationnet().to_gpu()
     # Optimizerの設定
     optimizer = optimizers.Adam(learning_rate)
     optimizer.setup(model)
 
-    file_list = glob.glob(os.path.join(path, '*.jpg'))
-    for image_path in file_list:
-        image = io.imread(image_path)
-        images.append(image)
+    for root, dirs, files in os.walk(data_location):
+        for file_name in files:
+            file_path = os.path.join(root, file_name)
+            image = io.imread(file_path)
+            images.append(image)
+            dirs = root.split('\\')
+            dataset_index = dirs.index('resized_dataset_56')
+            class_list.append(dirs[dataset_index+1])
     X = np.stack(images, axis=0)
+    class_uniq = list(set(class_list))
+    class_num = len(class_uniq)
 
     X_lab_bhwc = color.rgb2lab(X)
     X_lab_bchw = np.transpose(X_lab_bhwc, (0, 3, 1, 2))
@@ -190,6 +196,8 @@ if __name__ == '__main__':
     T_color = T_color.astype(np.float32)
     T_color = T_color / 100
     T_class = np.zeros((len(X), 205))
+    for i in range(len(X)):
+        T_class[i, class_uniq.index(class_list[i])] = 1
     T_class = cuda.to_gpu(T_class.astype(np.int32))
 
     try:
@@ -216,8 +224,8 @@ if __name__ == '__main__':
         print "割り込み停止が実行されました"
 
     predict_images = model.l2rgb(X_l_gpu_float32, False)
-    for original_image, predict_image in zip(images[0:10],
-                                             predict_images[0:10]):
+    for original_image, predict_image in zip(images[0:5],
+                                             predict_images[0:5]):
         plt.subplot(1, 2, 1)
         plt.imshow(original_image)
         plt.subplot(1, 2, 2)
