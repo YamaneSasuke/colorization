@@ -130,14 +130,14 @@ class Colorizationnet(Chain):
         loss = loss_color + (a * loss_class)
         return loss, loss_color, loss_class
 
-    def loss_ave(self, X, T_color, T_class, a, test):
+    def loss_ave(self, image_list, T_class, num_batches, a, test):
         losses = []
         loss_colors = []
         loss_classes = []
-        total_data = np.arange(len(X))
+        total_data = np.arange(len(image_list))
         for indexes in np.array_split(total_data, num_batches):
-            X_batch = cuda.to_gpu(X[indexes])
-            T_color_batch = cuda.to_gpu(T_color[indexes])
+            X_batch, T_color_batch = read_images_and_T_color(image_list,
+                                                             indexes)
             T_class_batch = cuda.to_gpu(T_class[indexes])
             loss, loss_color, loss_class = self.lossfun(X_batch,
                                                         T_color_batch,
@@ -170,15 +170,34 @@ class Colorizationnet(Chain):
             rgb_images.append(rgb_image)
         return rgb_images
 
+
+def read_images_and_T_color(image_list, indexes):
+    images = []
+
+    for i in indexes:
+        image = io.imread(image_list[i])
+        images.append(image)
+    X = np.stack(images, axis=0)
+
+    X_lab_bhwc = color.rgb2lab(X)
+    X_lab_bchw = np.transpose(X_lab_bhwc, (0, 3, 1, 2))
+    X_l_normalized = (X_lab_bchw[:, 0:1, :, :] / 100) - 0.5
+    X_l_float32 = X_l_normalized.astype(np.float32)
+
+    T_color = X_lab_bchw[:, 1:3, :, :]
+    T_color = T_color.astype(np.float32)
+    T_color = T_color / 50
+
+    return cuda.to_gpu(X_l_float32), cuda.to_gpu(T_color)
+
 if __name__ == '__main__':
     # 超パラメータ
     max_iteration = 1000  # 繰り返し回数
     learning_rate = 0.1  # 学習率
-    a = 2.0
+    a = 0.0
     batch_size = 100  # ミニバッチサイズ
 
-    data_location = r'C:\Users\yamane\Dropbox\colorization\dataset'
-    images = []
+    image_list = []
     losses = []
     loss_colors = []
     loss_classes = []
@@ -189,21 +208,18 @@ if __name__ == '__main__':
     optimizer = optimizers.Adam(learning_rate)
     optimizer.setup(model)
 
-    for root, dirs, files in os.walk(data_location):
-        for file_name in files:
-            file_path = os.path.join(root, file_name)
-            image = io.imread(file_path)
-            images.append(image)
-            dirs = root.split('\\')
-            dataset_index = dirs.index('resized_dataset_56')
-            class_list.append(dirs[dataset_index+1])
-    X = np.stack(images, axis=0)
+    f = open("image_list.txt", "r")
+    for path in f:
+        path = path.strip()
+        dirs = path.split('\\')
+        images256_index = dirs.index('resized_dataset_56')
+        image_list.append(path)
+        class_list.append('_'.join(dirs[images256_index+2:-1]))
+    f.close()
     class_uniq = list(set(class_list))
 
-    X_lab_bhwc = color.rgb2lab(X)
-    X_lab_bchw = np.transpose(X_lab_bhwc, (0, 3, 1, 2))
-    X_l_normalized = (X_lab_bchw[:, 0:1, :, :] / 100) - 0.5
-    X_l_float32 = X_l_normalized.astype(np.float32)
+    train_image_list = image_list[:-5]
+    test_image_list = image_list[-5:]
 
 #    low = model.low_level_features_network(X_l_gpu_float32, False)
 #    gl, cl = model.global_features_network(low, False)
@@ -211,25 +227,22 @@ if __name__ == '__main__':
 #    y = model.colorization_network(mid, gl, False)
 #    y_color, y_class = model.forward(X_l_gpu_float32, False)
 
-    T_color = X_lab_bchw[:, 1:3, :, :]
-    T_color = T_color.astype(np.float32)
-    T_color = T_color / 50
-    T_class = np.zeros((len(X), 205))
-    for i in range(len(X)):
+    T_class = np.zeros((len(train_image_list), len(class_uniq)))
+    for i in range(len(train_image_list)):
         T_class[i, class_uniq.index(class_list[i])] = 1
     T_class = T_class.astype(np.int32)
 
-    num_batches = len(X_l_float32) / batch_size
+    num_batches = len(train_image_list) / batch_size
 
     time_origin = time.time()
     try:
 
         for epoch in range(max_iteration):
             time_begin = time.time()
-            permu = np.random.permutation(len(X_l_float32))
+            permu = np.random.permutation(len(train_image_list))
             for indexes in np.array_split(permu, num_batches):
-                X_batch = cuda.to_gpu(X_l_float32[indexes])
-                T_color_batch = cuda.to_gpu(T_color[indexes])
+                X_batch, T_color_batch = read_images_and_T_color(
+                        train_image_list, indexes)
                 T_class_batch = cuda.to_gpu(T_class[indexes])
                 # 勾配を初期化s
                 optimizer.zero_grads()
@@ -245,19 +258,19 @@ if __name__ == '__main__':
             time_end = time.time()
             epoch_time = time_end - time_begin
             total_time = time_end - time_origin
-            loss, loss_color, loss_class = model.loss_ave(X_l_float32,
-                                                          T_color,
+            loss, loss_color, loss_class = model.loss_ave(train_image_list,
                                                           T_class,
+                                                          num_batches,
                                                           a, False)
             losses.append(loss)
             loss_colors.append(loss_color)
-            loss_classes.append(loss_class)
+            loss_classes.append(loss_class * a)
             # 訓練データでの結果を表示
             print "epoch:", epoch
             print "time", epoch_time, "(", total_time, ")"
             print "loss:", losses[epoch]
             print "loss_color:", loss_colors[epoch]
-            print "loss_class:", loss_classes[epoch]
+            print "loss_class * a:", loss_classes[epoch] * a
             plt.plot(losses)
             plt.plot(loss_colors)
             plt.plot(loss_classes)
@@ -269,11 +282,26 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print "割り込み停止が実行されました"
 
-    predict_images = model.l2rgb(X_l_float32, False)
-    for original_image, predict_image in zip(images[0:5],
+    test_images = []
+    for i in range(len(test_image_list)):
+        test_image = io.imread(test_image_list[i])
+        test_images.append(test_image)
+    X_test = np.stack(test_images, axis=0)
+
+    X_test_lab_bhwc = color.rgb2lab(X_test)
+    X_test_lab_bchw = np.transpose(X_test_lab_bhwc, (0, 3, 1, 2))
+    X_test_l_normalized = (X_test_lab_bchw[:, 0:1, :, :] / 100) - 0.5
+    X_test_l_float32 = X_test_l_normalized.astype(np.float32)
+
+    predict_images = model.l2rgb(X_test_l_float32, False)
+    for original_image, predict_image in zip(test_images[0:5],
                                              predict_images[0:5]):
         plt.subplot(1, 2, 1)
         plt.imshow(original_image)
         plt.subplot(1, 2, 2)
         plt.imshow(predict_image)
         plt.show()
+    print 'max_iteration:', max_iteration
+    print 'learning_rate:', learning_rate
+    print 'batch_size:', batch_size
+    print 'a:', a
