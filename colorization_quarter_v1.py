@@ -5,7 +5,6 @@ Created on Mon Sep 05 13:01:00 2016
 @author: yamane
 """
 
-import os
 import numpy as np
 from chainer import cuda, optimizers, Chain
 import chainer.functions as F
@@ -126,7 +125,7 @@ class Colorizationnet(Chain):
     def lossfun(self, X, T_color, T_class, a, test):
         y_color, y_class = self.forward(X, test)
         loss_color = F.mean_squared_error(y_color, T_color)
-        loss_class = F.sigmoid_cross_entropy(y_class, T_class)
+        loss_class = F.softmax_cross_entropy(y_class, T_class)
         loss = loss_color + (a * loss_class)
         return loss, loss_color, loss_class
 
@@ -192,16 +191,16 @@ def read_images_and_T_color(image_list, indexes):
 
 if __name__ == '__main__':
     # 超パラメータ
-    max_iteration = 1000  # 繰り返し回数
+    max_iteration = 100  # 繰り返し回数
     learning_rate = 0.1  # 学習率
-    a = 0.0
-    batch_size = 100  # ミニバッチサイズ
+    a = 1.0 / 300.0
+    batch_size = 300  # ミニバッチサイズ
 
     image_list = []
-    losses = []
-    loss_colors = []
-    loss_classes = []
     class_list = []
+    epoch_loss = []
+    epoch_loss_color = []
+    epoch_loss_class = []
 
     model = Colorizationnet().to_gpu()
     # Optimizerの設定
@@ -227,9 +226,9 @@ if __name__ == '__main__':
 #    y = model.colorization_network(mid, gl, False)
 #    y_color, y_class = model.forward(X_l_gpu_float32, False)
 
-    T_class = np.zeros((len(train_image_list), len(class_uniq)))
+    T_class = np.zeros(len(train_image_list))
     for i in range(len(train_image_list)):
-        T_class[i, class_uniq.index(class_list[i])] = 1
+        T_class[i] = class_uniq.index(class_list[i])
     T_class = T_class.astype(np.int32)
 
     num_batches = len(train_image_list) / batch_size
@@ -240,6 +239,9 @@ if __name__ == '__main__':
         for epoch in range(max_iteration):
             time_begin = time.time()
             permu = np.random.permutation(len(train_image_list))
+            losses = []
+            loss_colors = []
+            loss_classes = []
             for indexes in np.array_split(permu, num_batches):
                 X_batch, T_color_batch = read_images_and_T_color(
                         train_image_list, indexes)
@@ -254,26 +256,30 @@ if __name__ == '__main__':
                 # 逆伝搬を計算
                 loss.backward()
                 optimizer.update()
+                loss = cuda.to_cpu(loss.data)
+                loss_color = cuda.to_cpu(loss_color.data)
+                loss_class = cuda.to_cpu(loss_class.data)
+                losses.append(loss)
+                loss_colors.append(loss_color)
+                loss_classes.append(loss_class * a)
+                print '[epoch]:', epoch, '[loss]:', loss
 
             time_end = time.time()
             epoch_time = time_end - time_begin
             total_time = time_end - time_origin
-            loss, loss_color, loss_class = model.loss_ave(train_image_list,
-                                                          T_class,
-                                                          num_batches,
-                                                          a, False)
-            losses.append(loss)
-            loss_colors.append(loss_color)
-            loss_classes.append(loss_class * a)
+            epoch_loss.append(np.mean(losses))
+            epoch_loss_color.append(np.mean(loss_colors))
+            epoch_loss_class.append(np.mean(loss_classes))
+
             # 訓練データでの結果を表示
             print "epoch:", epoch
             print "time", epoch_time, "(", total_time, ")"
-            print "loss:", losses[epoch]
-            print "loss_color:", loss_colors[epoch]
-            print "loss_class * a:", loss_classes[epoch] * a
-            plt.plot(losses)
-            plt.plot(loss_colors)
-            plt.plot(loss_classes)
+            print "loss:", epoch_loss[epoch]
+            print "loss_color:", epoch_loss_color[epoch]
+            print "loss_class * a:", epoch_loss_class[epoch]
+            plt.plot(epoch_loss)
+            plt.plot(epoch_loss_color)
+            plt.plot(epoch_loss_class)
             plt.title("loss")
             plt.legend(["loss", "color", "class"], loc="upper right")
             plt.grid()
