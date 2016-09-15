@@ -11,7 +11,7 @@ import numpy as np
 
 
 def build_resized_dataset(output_size=224, data_location='', quality=100):
-    output_dir_name = 'resized_dataset_' + str(output_size)
+    output_dir_name = 'resized_dataset_random_save_' + str(output_size)
     output_root_dir = os.path.join(data_location, output_dir_name)
     if os.path.exists(output_root_dir):
         print u"すでに存在するため終了します."
@@ -22,6 +22,7 @@ def build_resized_dataset(output_size=224, data_location='', quality=100):
     f_file = open("file_list.txt", "r")
     f_path = open("random_file_path.txt", "w")
     paths = []
+    sava_path_list = []
     for path in f_file:
         paths.append(path)
     paths = np.array(paths)
@@ -41,9 +42,12 @@ def build_resized_dataset(output_size=224, data_location='', quality=100):
         if not os.path.exists(output_dir_path):
             os.makedirs(output_dir_path)
         save_path = os.path.join(output_dir_path, file_name)
+        sava_path_list.append(save_path)
         io.imsave(save_path, image_resized, quality=quality)
-        f_path.write(path + "\n")
     f_file.close()
+
+    for path in sava_path_list:
+        f_path.write(path + "\n")
     f_path.close()
 
 if __name__ == '__main__':
