@@ -7,6 +7,7 @@ Created on Tue Sep 06 16:14:41 2016
 
 import os
 from skimage import io, transform
+import numpy as np
 
 
 def build_resized_dataset(output_size=224, data_location='', quality=100):
@@ -18,8 +19,16 @@ def build_resized_dataset(output_size=224, data_location='', quality=100):
     else:
         os.makedirs(output_root_dir)
 
-    f = open("file_list.txt", "r")
-    for path in f:
+    f_file = open("file_list.txt", "r")
+    f_path = open("random_file_path.txt", "w")
+    paths = []
+    for path in f_file:
+        paths.append(path)
+    paths = np.array(paths)
+
+    random_paths = np.random.permutation(paths)
+
+    for path in random_paths:
         path = path.strip()
         dirs = path.split('\\')
         file_name = dirs[-1]
@@ -33,7 +42,9 @@ def build_resized_dataset(output_size=224, data_location='', quality=100):
             os.makedirs(output_dir_path)
         save_path = os.path.join(output_dir_path, file_name)
         io.imsave(save_path, image_resized, quality=quality)
-    f.close()
+        f_path.write(path + "\n")
+    f_file.close()
+    f_path.close()
 
 if __name__ == '__main__':
     output_size = 56
