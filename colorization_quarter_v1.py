@@ -207,7 +207,7 @@ if __name__ == '__main__':
     optimizer = optimizers.Adam(learning_rate)
     optimizer.setup(model)
 
-    f = open("image_list.txt", "r")
+    f = open("random_file_path.txt", "r")
     for path in f:
         path = path.strip()
         dirs = path.split('\\')
@@ -238,7 +238,7 @@ if __name__ == '__main__':
 
         for epoch in range(max_iteration):
             time_begin = time.time()
-            permu = np.random.permutation(len(train_image_list))
+            permu = range(len(train_image_list))
             losses = []
             loss_colors = []
             loss_classes = []
