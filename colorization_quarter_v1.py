@@ -131,7 +131,7 @@ class Colorizationnet(Chain):
         losses = []
         loss_colors = []
         loss_classes = []
-        total_data = np.arange(len(image_list))
+        total_data = np.arange(len(image_list)/10000)
         for indexes in np.array_split(total_data, num_batches):
             X_batch, T_color_batch = read_images_and_T_color(image_list,
                                                              indexes)
@@ -197,10 +197,10 @@ if __name__ == '__main__':
 
     image_list = []
     class_list = []
-    epoch_loss_train = []
-    epoch_loss_color_train = []
-    epoch_loss_class_train = []
-    loss_valid_best = 0
+    epoch_loss = []
+    epoch_loss_color = []
+    epoch_loss_class = []
+    loss_valid_best = np.inf
 
     model = Colorizationnet().to_gpu()
     # Optimizerの設定
@@ -217,8 +217,6 @@ if __name__ == '__main__':
     f.close()
     class_uniq = list(set(class_list))
 
-    train_image_list = image_list[:-valid_size]
-    valid_image_list = image_list[-valid_size:]
 
 #    low = model.low_level_features_network(X_l_gpu_float32, False)
 #    gl, cl = model.global_features_network(low, False)
@@ -226,13 +224,16 @@ if __name__ == '__main__':
 #    y = model.colorization_network(mid, gl, False)
 #    y_color, y_class = model.forward(X_l_gpu_float32, False)
 
-    T_class = np.zeros(len(train_image_list))
-    for i in range(len(train_image_list)):
+    T_class = np.zeros(len(image_list))
+    for i in range(len(image_list)):
         T_class[i] = class_uniq.index(class_list[i])
     T_class_train = T_class[:-valid_size].astype(np.int32)
     T_class_valid = T_class[-valid_size:].astype(np.int32)
 
-    num_train = len(train_image_list) / 100
+    train_image_list = image_list[:-valid_size]
+    valid_image_list = image_list[-valid_size:]
+
+    num_train = len(train_image_list) / 10000
     num_batches = num_train / batch_size
 
     time_origin = time.time()
@@ -241,9 +242,9 @@ if __name__ == '__main__':
         for epoch in range(max_iteration):
             time_begin = time.time()
             permu = range(num_train)
-            losses_train = []
-            loss_colors_train = []
-            loss_classes_train = []
+            losses = []
+            loss_colors = []
+            loss_classes = []
             for indexes in np.array_split(permu, num_batches):
                 X_batch, T_color_batch = read_images_and_T_color(
                         train_image_list, indexes)
@@ -251,26 +252,26 @@ if __name__ == '__main__':
                 # 勾配を初期化s
                 optimizer.zero_grads()
                 # 順伝播を計算し、誤差と精度を取得
-                loss_train, loss_color_train, loss_class_train = model.lossfun(
+                loss, loss_color, loss_class = model.lossfun(
                         X_batch, T_color_batch, T_class_batch, a, False)
                 # 逆伝搬を計算
-                loss_train.backward()
+                loss.backward()
                 optimizer.update()
-                loss_train = cuda.to_cpu(loss_train.data)
-                loss_color_train = cuda.to_cpu(loss_color_train.data)
-                loss_class_train = cuda.to_cpu(loss_class_train.data)
+                loss = cuda.to_cpu(loss.data)
+                loss_color = cuda.to_cpu(loss_color.data)
+                loss_class = cuda.to_cpu(loss_class.data)
 
-                losses_train.append(loss_train)
-                loss_colors_train.append(loss_color_train)
-                loss_classes_train.append(loss_class_train * a)
-                print '[epoch]:', epoch, '[loss]:', loss_train
+                losses.append(loss)
+                loss_colors.append(loss_color)
+                loss_classes.append(loss_class * a)
+                print '[epoch]:', epoch, '[loss]:', loss
 
             time_end = time.time()
             epoch_time = time_end - time_begin
             total_time = time_end - time_origin
-            epoch_loss_train.append(np.mean(losses_train))
-            epoch_loss_color_train.append(np.mean(loss_colors_train))
-            epoch_loss_class_train.append(np.mean(loss_classes_train))
+            epoch_loss.append(np.mean(losses))
+            epoch_loss_color.append(np.mean(loss_colors))
+            epoch_loss_class.append(np.mean(loss_classes))
 
             loss_valid, loss_color_valid, loss_class_valid = model.loss_ave(
                     valid_image_list, T_class_valid, num_batches, a, False)
@@ -283,12 +284,16 @@ if __name__ == '__main__':
             # 訓練データでの結果を表示
             print "epoch:", epoch
             print "time", epoch_time, "(", total_time, ")"
-            print "loss:", epoch_loss_train[epoch]
-            print "loss_color:", epoch_loss_color_train[epoch]
-            print "loss_class * a:", epoch_loss_class_train[epoch]
-            plt.plot(epoch_loss_train)
-            plt.plot(epoch_loss_color_train)
-            plt.plot(epoch_loss_class_train)
+            print "loss[train]:", epoch_loss[epoch]
+            print "loss_color[train]:", epoch_loss_color[epoch]
+            print "loss_class * a[train]:", epoch_loss_class[epoch]
+            print "loss[valid]:", loss_valid
+            print "loss[valid_best]:", loss_valid_best
+            print "loss_color[valid]:", loss_color_valid
+            print "loss_class * a[valid]:", loss_class_valid
+            plt.plot(epoch_loss)
+            plt.plot(epoch_loss_color)
+            plt.plot(epoch_loss_class)
             plt.title("loss")
             plt.legend(["loss", "color", "class"], loc="upper right")
             plt.grid()
