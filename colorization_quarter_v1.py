@@ -131,7 +131,7 @@ class Colorizationnet(Chain):
         losses = []
         loss_colors = []
         loss_classes = []
-        total_data = np.arange(len(image_list)/10000)
+        total_data = np.arange(len(image_list))
         for indexes in np.array_split(total_data, num_batches):
             X_batch, T_color_batch = read_images_and_T_color(image_list,
                                                              indexes)
@@ -233,7 +233,7 @@ if __name__ == '__main__':
     train_image_list = image_list[:-valid_size]
     valid_image_list = image_list[-valid_size:]
 
-    num_train = len(train_image_list) / 10000
+    num_train = len(train_image_list)
     num_batches = num_train / batch_size
 
     time_origin = time.time()
