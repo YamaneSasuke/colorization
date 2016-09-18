@@ -6,7 +6,7 @@ Created on Mon Sep 05 13:01:00 2016
 """
 
 import numpy as np
-from chainer import cuda, optimizers, Chain
+from chainer import cuda, optimizers, Chain, serializers
 import chainer.functions as F
 import chainer.links as L
 import matplotlib.pyplot as plt
@@ -98,11 +98,8 @@ class Colorizationnet(Chain):
         return y
 
     def colorization_network(self, h_local, h_global, test):
-        h_global.data = h_global.data.reshape(-1, 256, 1, 1)
-        h_global = cuda.to_cpu(h_global.data)
-#        h_local = cuda.to_cpu(h_local)
-        h_global = np.broadcast_to(h_global, h_local.data.shape)
-        h_global = cuda.to_gpu(h_global)
+        h_global = F.reshape(h_global, (-1, 256, 1, 1))
+        h_global = F.broadcast_to(h_global, h_local.data.shape)
         h = F.concat((h_local.data, h_global), axis=1)
         h = F.relu(self.fnorm(self.fusion(h), test=test))
         h = F.relu(self.cnorm1(self.cconv1(h), test=test))
@@ -191,10 +188,10 @@ def read_images_and_T_color(image_list, indexes):
 
 if __name__ == '__main__':
     # 超パラメータ
-    max_iteration = 100  # 繰り返し回数
-    learning_rate = 0.1  # 学習率
+    max_iteration = 10000  # 繰り返し回数
+    learning_rate = 0.001  # 学習率
     a = 1.0 / 300.0
-    batch_size = 300  # ミニバッチサイズ
+    batch_size = 100  # ミニバッチサイズ
 
     image_list = []
     class_list = []
@@ -204,14 +201,14 @@ if __name__ == '__main__':
 
     model = Colorizationnet().to_gpu()
     # Optimizerの設定
-    optimizer = optimizers.Adam(learning_rate)
+    optimizer = optimizers.AdaDelta(learning_rate)
     optimizer.setup(model)
 
     f = open("random_file_path.txt", "r")
     for path in f:
         path = path.strip()
         dirs = path.split('\\')
-        images256_index = dirs.index('resized_dataset_56')
+        images256_index = dirs.index('resized_dataset_random_save_56')
         image_list.append(path)
         class_list.append('_'.join(dirs[images256_index+2:-1]))
     f.close()
@@ -231,14 +228,15 @@ if __name__ == '__main__':
         T_class[i] = class_uniq.index(class_list[i])
     T_class = T_class.astype(np.int32)
 
-    num_batches = len(train_image_list) / batch_size
+    num_train = len(train_image_list) / 100
+    num_batches = num_train / batch_size
 
     time_origin = time.time()
     try:
 
         for epoch in range(max_iteration):
             time_begin = time.time()
-            permu = range(len(train_image_list))
+            permu = range(num_train)
             losses = []
             loss_colors = []
             loss_classes = []
@@ -262,7 +260,7 @@ if __name__ == '__main__':
                 losses.append(loss)
                 loss_colors.append(loss_color)
                 loss_classes.append(loss_class * a)
-                print '[epoch]:', epoch, '[loss]:', loss
+#                print '[epoch]:', epoch, '[loss]:', loss
 
             time_end = time.time()
             epoch_time = time_end - time_begin
@@ -310,4 +308,5 @@ if __name__ == '__main__':
     print 'max_iteration:', max_iteration
     print 'learning_rate:', learning_rate
     print 'batch_size:', batch_size
+    print 'num_train', num_train
     print 'a:', a
