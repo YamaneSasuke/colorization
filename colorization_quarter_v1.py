@@ -233,7 +233,6 @@ if __name__ == '__main__':
     T_class_valid = T_class[-valid_size:].astype(np.int32)
 
     num_train = len(train_image_list) / 100
-    num_valid = len(valid_image_list) / 100
     num_batches = num_train / batch_size
 
     time_origin = time.time()
@@ -264,19 +263,7 @@ if __name__ == '__main__':
                 losses_train.append(loss_train)
                 loss_colors_train.append(loss_color_train)
                 loss_classes_train.append(loss_class_train * a)
-
-                X_valid, T_color_valid = read_images_and_T_color(
-                        valid_image_list, indexes)
-                T_class_valid = cuda.to_gpu(T_class_valid[indexes])
-
-                loss_valid, loss_color_valid, loss_class_valid = model.lossfun(
-                        X_valid, T_color_valid, T_class_valid, a, False)
-
-                if loss_valid < loss_valid_best:
-                    loss_valid_best = loss_valid
-                    epoch_best = epoch
-                    model_best = copy.deepcopy(model)
-#                print '[epoch]:', epoch, '[loss]:', loss
+                print '[epoch]:', epoch, '[loss]:', loss_train
 
             time_end = time.time()
             epoch_time = time_end - time_begin
@@ -284,6 +271,14 @@ if __name__ == '__main__':
             epoch_loss_train.append(np.mean(losses_train))
             epoch_loss_color_train.append(np.mean(loss_colors_train))
             epoch_loss_class_train.append(np.mean(loss_classes_train))
+
+            loss_valid, loss_color_valid, loss_class_valid = model.loss_ave(
+                    valid_image_list, T_class_valid, num_batches, a, False)
+
+            if loss_valid < loss_valid_best:
+                loss_valid_best = loss_valid
+                epoch_best = epoch
+                model_best = copy.deepcopy(model)
 
             # 訓練データでの結果を表示
             print "epoch:", epoch
