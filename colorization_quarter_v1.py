@@ -12,6 +12,7 @@ import chainer.links as L
 import matplotlib.pyplot as plt
 from skimage import color, io
 import time
+import copy
 
 
 # ネットワークの定義
@@ -192,12 +193,14 @@ if __name__ == '__main__':
     learning_rate = 0.001  # 学習率
     a = 1.0 / 300.0
     batch_size = 100  # ミニバッチサイズ
+    valid_size = 20000
 
     image_list = []
     class_list = []
-    epoch_loss = []
-    epoch_loss_color = []
-    epoch_loss_class = []
+    epoch_loss_train = []
+    epoch_loss_color_train = []
+    epoch_loss_class_train = []
+    loss_valid_best = 0
 
     model = Colorizationnet().to_gpu()
     # Optimizerの設定
@@ -214,8 +217,8 @@ if __name__ == '__main__':
     f.close()
     class_uniq = list(set(class_list))
 
-    train_image_list = image_list[:-5]
-    test_image_list = image_list[-5:]
+    train_image_list = image_list[:-valid_size]
+    valid_image_list = image_list[-valid_size:]
 
 #    low = model.low_level_features_network(X_l_gpu_float32, False)
 #    gl, cl = model.global_features_network(low, False)
@@ -226,9 +229,11 @@ if __name__ == '__main__':
     T_class = np.zeros(len(train_image_list))
     for i in range(len(train_image_list)):
         T_class[i] = class_uniq.index(class_list[i])
-    T_class = T_class.astype(np.int32)
+    T_class_train = T_class[:-valid_size].astype(np.int32)
+    T_class_valid = T_class[-valid_size:].astype(np.int32)
 
     num_train = len(train_image_list) / 100
+    num_valid = len(valid_image_list) / 100
     num_batches = num_train / batch_size
 
     time_origin = time.time()
@@ -237,47 +242,58 @@ if __name__ == '__main__':
         for epoch in range(max_iteration):
             time_begin = time.time()
             permu = range(num_train)
-            losses = []
-            loss_colors = []
-            loss_classes = []
+            losses_train = []
+            loss_colors_train = []
+            loss_classes_train = []
             for indexes in np.array_split(permu, num_batches):
                 X_batch, T_color_batch = read_images_and_T_color(
                         train_image_list, indexes)
-                T_class_batch = cuda.to_gpu(T_class[indexes])
+                T_class_batch = cuda.to_gpu(T_class_train[indexes])
                 # 勾配を初期化s
                 optimizer.zero_grads()
                 # 順伝播を計算し、誤差と精度を取得
-                loss, loss_color, loss_class = model.lossfun(X_batch,
-                                                             T_color_batch,
-                                                             T_class_batch,
-                                                             a, False)
+                loss_train, loss_color_train, loss_class_train = model.lossfun(
+                        X_batch, T_color_batch, T_class_batch, a, False)
                 # 逆伝搬を計算
-                loss.backward()
+                loss_train.backward()
                 optimizer.update()
-                loss = cuda.to_cpu(loss.data)
-                loss_color = cuda.to_cpu(loss_color.data)
-                loss_class = cuda.to_cpu(loss_class.data)
-                losses.append(loss)
-                loss_colors.append(loss_color)
-                loss_classes.append(loss_class * a)
+                loss_train = cuda.to_cpu(loss_train.data)
+                loss_color_train = cuda.to_cpu(loss_color_train.data)
+                loss_class_train = cuda.to_cpu(loss_class_train.data)
+
+                losses_train.append(loss_train)
+                loss_colors_train.append(loss_color_train)
+                loss_classes_train.append(loss_class_train * a)
+
+                X_valid, T_color_valid = read_images_and_T_color(
+                        valid_image_list, indexes)
+                T_class_valid = cuda.to_gpu(T_class_valid[indexes])
+
+                loss_valid, loss_color_valid, loss_class_valid = model.lossfun(
+                        X_valid, T_color_valid, T_class_valid, a, False)
+
+                if loss_valid < loss_valid_best:
+                    loss_valid_best = loss_valid
+                    epoch_best = epoch
+                    model_best = copy.deepcopy(model)
 #                print '[epoch]:', epoch, '[loss]:', loss
 
             time_end = time.time()
             epoch_time = time_end - time_begin
             total_time = time_end - time_origin
-            epoch_loss.append(np.mean(losses))
-            epoch_loss_color.append(np.mean(loss_colors))
-            epoch_loss_class.append(np.mean(loss_classes))
+            epoch_loss_train.append(np.mean(losses_train))
+            epoch_loss_color_train.append(np.mean(loss_colors_train))
+            epoch_loss_class_train.append(np.mean(loss_classes_train))
 
             # 訓練データでの結果を表示
             print "epoch:", epoch
             print "time", epoch_time, "(", total_time, ")"
-            print "loss:", epoch_loss[epoch]
-            print "loss_color:", epoch_loss_color[epoch]
-            print "loss_class * a:", epoch_loss_class[epoch]
-            plt.plot(epoch_loss)
-            plt.plot(epoch_loss_color)
-            plt.plot(epoch_loss_class)
+            print "loss:", epoch_loss_train[epoch]
+            print "loss_color:", epoch_loss_color_train[epoch]
+            print "loss_class * a:", epoch_loss_class_train[epoch]
+            plt.plot(epoch_loss_train)
+            plt.plot(epoch_loss_color_train)
+            plt.plot(epoch_loss_class_train)
             plt.title("loss")
             plt.legend(["loss", "color", "class"], loc="upper right")
             plt.grid()
@@ -286,25 +302,28 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print "割り込み停止が実行されました"
 
-    test_images = []
-    for i in range(len(test_image_list)):
-        test_image = io.imread(test_image_list[i])
-        test_images.append(test_image)
-    X_test = np.stack(test_images, axis=0)
+    model_filename = 'model' + str(time.time()) + '.npz'
+    serializers.save_npz(model_filename, model_best)
 
-    X_test_lab_bhwc = color.rgb2lab(X_test)
-    X_test_lab_bchw = np.transpose(X_test_lab_bhwc, (0, 3, 1, 2))
-    X_test_l_normalized = (X_test_lab_bchw[:, 0:1, :, :] / 100) - 0.5
-    X_test_l_float32 = X_test_l_normalized.astype(np.float32)
-
-    predict_images = model.l2rgb(X_test_l_float32, False)
-    for original_image, predict_image in zip(test_images[0:5],
-                                             predict_images[0:5]):
-        plt.subplot(1, 2, 1)
-        plt.imshow(original_image)
-        plt.subplot(1, 2, 2)
-        plt.imshow(predict_image)
-        plt.show()
+#    test_images = []
+#    for i in range(len(test_image_list)):
+#        test_image = io.imread(test_image_list[i])
+#        test_images.append(test_image)
+#    X_test = np.stack(test_images, axis=0)
+#
+#    X_test_lab_bhwc = color.rgb2lab(X_test)
+#    X_test_lab_bchw = np.transpose(X_test_lab_bhwc, (0, 3, 1, 2))
+#    X_test_l_normalized = (X_test_lab_bchw[:, 0:1, :, :] / 100) - 0.5
+#    X_test_l_float32 = X_test_l_normalized.astype(np.float32)
+#
+#    predict_images = model.l2rgb(X_test_l_float32, False)
+#    for original_image, predict_image in zip(test_images[0:5],
+#                                             predict_images[0:5]):
+#        plt.subplot(1, 2, 1)
+#        plt.imshow(original_image)
+#        plt.subplot(1, 2, 2)
+#        plt.imshow(predict_image)
+#        plt.show()
     print 'max_iteration:', max_iteration
     print 'learning_rate:', learning_rate
     print 'batch_size:', batch_size
