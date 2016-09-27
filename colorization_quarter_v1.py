@@ -20,56 +20,56 @@ import tqdm
 class Colorizationnet(Chain):
     def __init__(self):
         super(Colorizationnet, self).__init__(
-            lconv1=L.Convolution2D(1, 64, 3, stride=2, pad=1),
-            lnorm1=L.BatchNormalization(64),
-            lconv2=L.Convolution2D(64, 128, 3, stride=1, pad=1),
-            lnorm2=L.BatchNormalization(128),
-            lconv3=L.Convolution2D(128, 128, 3, stride=2, pad=1),
-            lnorm3=L.BatchNormalization(128),
-            lconv4=L.Convolution2D(128, 256, 3, stride=1, pad=1),
-            lnorm4=L.BatchNormalization(256),
-            lconv5=L.Convolution2D(256, 256, 3, stride=2, pad=1),
-            lnorm5=L.BatchNormalization(256),
-            lconv6=L.Convolution2D(256, 512, 3, stride=1, pad=1),
-            lnorm6=L.BatchNormalization(512),
+            lconv1=L.Convolution2D(1, 32, 3, stride=2, pad=1),
+            lnorm1=L.BatchNormalization(32),
+            lconv2=L.Convolution2D(32, 64, 3, stride=1, pad=1),
+            lnorm2=L.BatchNormalization(64),
+            lconv3=L.Convolution2D(64, 64, 3, stride=2, pad=1),
+            lnorm3=L.BatchNormalization(64),
+            lconv4=L.Convolution2D(64, 128, 3, stride=1, pad=1),
+            lnorm4=L.BatchNormalization(128),
+            lconv5=L.Convolution2D(128, 128, 3, stride=2, pad=1),
+            lnorm5=L.BatchNormalization(128),
+            lconv6=L.Convolution2D(128, 256, 3, stride=1, pad=1),
+            lnorm6=L.BatchNormalization(256),
 
-            gconv1=L.Convolution2D(512, 512, 3, stride=2, pad=1),
-            gnorm1=L.BatchNormalization(512),
-            gconv2=L.Convolution2D(512, 512, 3, stride=1, pad=1),
-            gnorm2=L.BatchNormalization(512),
-            gconv3=L.Convolution2D(512, 512, 3, stride=2, pad=1),
-            gnorm3=L.BatchNormalization(512),
-            gconv4=L.Convolution2D(512, 512, 3, stride=1, pad=1),
-            gnorm4=L.BatchNormalization(512),
-            gl1=L.Linear(2048, 1024),
-            gnorm5=L.BatchNormalization(1024),
-            gl2=L.Linear(1024, 512),
-            gnorm6=L.BatchNormalization(512),
-            gl3=L.Linear(512, 256),
-            gnorm7=L.BatchNormalization(256),
+            gconv1=L.Convolution2D(256, 256, 3, stride=2, pad=1),
+            gnorm1=L.BatchNormalization(256),
+            gconv2=L.Convolution2D(256, 256, 3, stride=1, pad=1),
+            gnorm2=L.BatchNormalization(256),
+            gconv3=L.Convolution2D(256, 256, 3, stride=2, pad=1),
+            gnorm3=L.BatchNormalization(256),
+            gconv4=L.Convolution2D(256, 256, 3, stride=1, pad=1),
+            gnorm4=L.BatchNormalization(256),
+            gl1=L.Linear(1024, 512),
+            gnorm5=L.BatchNormalization(512),
+            gl2=L.Linear(512, 256),
+            gnorm6=L.BatchNormalization(256),
+            gl3=L.Linear(256, 128),
+            gnorm7=L.BatchNormalization(128),
 
-            classl1=L.Linear(512, 256),
+            classl1=L.Linear(256, 256),
             classnorm1=L.BatchNormalization(256),
             classl2=L.Linear(256, 205),
 
-            mconv1=L.Convolution2D(512, 512, 3, stride=1, pad=1),
-            mnorm1=L.BatchNormalization(512),
-            mconv2=L.Convolution2D(512, 256, 3, stride=1, pad=1),
-            mnorm2=L.BatchNormalization(256),
+            mconv1=L.Convolution2D(256, 256, 3, stride=1, pad=1),
+            mnorm1=L.BatchNormalization(256),
+            mconv2=L.Convolution2D(256, 128, 3, stride=1, pad=1),
+            mnorm2=L.BatchNormalization(128),
 
             # num_features次元の重みをnum_classesクラス分用意する
-            fusion=L.Convolution2D(512, 256, 1, stride=1),
-            fnorm=L.BatchNormalization(256),
-            cconv1=L.Convolution2D(256, 128, 3, stride=1, pad=1),
-            cnorm1=L.BatchNormalization(128),
-            cconv2=L.Convolution2D(128, 64, 3, stride=1, pad=1),
-            cnorm2=L.BatchNormalization(64),
-            cconv3=L.Convolution2D(64, 64, 3, stride=1, pad=1),
-            cnorm3=L.BatchNormalization(64),
-            cconv4=L.Convolution2D(64, 32, 3, stride=1, pad=1),
-            cnorm4=L.BatchNormalization(32),
+            fusion=L.Convolution2D(256, 128, 1, stride=1),
+            fnorm=L.BatchNormalization(128),
+            cconv1=L.Convolution2D(128, 64, 3, stride=1, pad=1),
+            cnorm1=L.BatchNormalization(64),
+            cconv2=L.Convolution2D(64, 32, 3, stride=1, pad=1),
+            cnorm2=L.BatchNormalization(32),
+            cconv3=L.Convolution2D(32, 32, 3, stride=1, pad=1),
+            cnorm3=L.BatchNormalization(32),
+            cconv4=L.Convolution2D(32, 16, 3, stride=1, pad=1),
+            cnorm4=L.BatchNormalization(16),
 
-            output=L.Convolution2D(32, 2, 3, stride=1, pad=1),
+            output=L.Convolution2D(16, 2, 3, stride=1, pad=1),
             onorm=L.BatchNormalization(2)
         )
 
@@ -100,7 +100,7 @@ class Colorizationnet(Chain):
         return y
 
     def colorization_network(self, h_local, h_global, test):
-        h_global = F.reshape(h_global, (-1, 256, 1, 1))
+        h_global = F.reshape(h_global, (-1, 128, 1, 1))
         h_global = F.broadcast_to(h_global, h_local.data.shape)
         h = F.concat((h_local.data, h_global), axis=1)
         h = F.relu(self.fnorm(self.fusion(h), test=test))
@@ -296,7 +296,7 @@ if __name__ == '__main__':
             print "loss[valid]:", loss_valid
             print "loss[valid_best]:", loss_valid_best
             print "loss_color[valid]:", loss_color_valid
-            print "loss_class * a[valid]:", loss_class_valid
+            print "loss_class * a[valid]:", loss_class_valid * a
 
             plt.plot(epoch_loss)
             plt.plot(epoch_loss_color)
