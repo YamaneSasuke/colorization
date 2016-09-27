@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from skimage import color, io
 import time
 import copy
+import tqdm
 
 
 # ネットワークの定義
@@ -200,6 +201,9 @@ if __name__ == '__main__':
     epoch_loss = []
     epoch_loss_color = []
     epoch_loss_class = []
+    epoch_valid_loss = []
+    epoch_valid_loss_color = []
+    epoch_valid_loss_class = []
     loss_valid_best = np.inf
 
     model = Colorizationnet().to_gpu()
@@ -216,7 +220,6 @@ if __name__ == '__main__':
         class_list.append('_'.join(dirs[images256_index+2:-1]))
     f.close()
     class_uniq = list(set(class_list))
-
 
 #    low = model.low_level_features_network(X_l_gpu_float32, False)
 #    gl, cl = model.global_features_network(low, False)
@@ -245,7 +248,7 @@ if __name__ == '__main__':
             losses = []
             loss_colors = []
             loss_classes = []
-            for indexes in np.array_split(permu, num_batches):
+            for indexes in tqdm.tqdm(np.array_split(permu, num_batches)):
                 X_batch, T_color_batch = read_images_and_T_color(
                         train_image_list, indexes)
                 T_class_batch = cuda.to_gpu(T_class_train[indexes])
@@ -264,7 +267,6 @@ if __name__ == '__main__':
                 losses.append(loss)
                 loss_colors.append(loss_color)
                 loss_classes.append(loss_class * a)
-                print '[epoch]:', epoch, '[loss]:', loss
 
             time_end = time.time()
             epoch_time = time_end - time_begin
@@ -275,6 +277,10 @@ if __name__ == '__main__':
 
             loss_valid, loss_color_valid, loss_class_valid = model.loss_ave(
                     valid_image_list, T_class_valid, num_batches, a, False)
+
+            epoch_valid_loss.append(loss_valid)
+            epoch_valid_loss_color.append(loss_color_valid)
+            epoch_valid_loss_class.append(loss_class_valid * a)
 
             if loss_valid < loss_valid_best:
                 loss_valid_best = loss_valid
@@ -291,10 +297,19 @@ if __name__ == '__main__':
             print "loss[valid_best]:", loss_valid_best
             print "loss_color[valid]:", loss_color_valid
             print "loss_class * a[valid]:", loss_class_valid
+
             plt.plot(epoch_loss)
             plt.plot(epoch_loss_color)
             plt.plot(epoch_loss_class)
-            plt.title("loss")
+            plt.title("loss_train")
+            plt.legend(["loss", "color", "class"], loc="upper right")
+            plt.grid()
+            plt.show()
+
+            plt.plot(epoch_valid_loss)
+            plt.plot(epoch_valid_loss_color)
+            plt.plot(epoch_valid_loss_class)
+            plt.title("loss_valid")
             plt.legend(["loss", "color", "class"], loc="upper right")
             plt.grid()
             plt.show()
@@ -305,25 +320,6 @@ if __name__ == '__main__':
     model_filename = 'model' + str(time.time()) + '.npz'
     serializers.save_npz(model_filename, model_best)
 
-#    test_images = []
-#    for i in range(len(test_image_list)):
-#        test_image = io.imread(test_image_list[i])
-#        test_images.append(test_image)
-#    X_test = np.stack(test_images, axis=0)
-#
-#    X_test_lab_bhwc = color.rgb2lab(X_test)
-#    X_test_lab_bchw = np.transpose(X_test_lab_bhwc, (0, 3, 1, 2))
-#    X_test_l_normalized = (X_test_lab_bchw[:, 0:1, :, :] / 100) - 0.5
-#    X_test_l_float32 = X_test_l_normalized.astype(np.float32)
-#
-#    predict_images = model.l2rgb(X_test_l_float32, False)
-#    for original_image, predict_image in zip(test_images[0:5],
-#                                             predict_images[0:5]):
-#        plt.subplot(1, 2, 1)
-#        plt.imshow(original_image)
-#        plt.subplot(1, 2, 2)
-#        plt.imshow(predict_image)
-#        plt.show()
     print 'max_iteration:', max_iteration
     print 'learning_rate:', learning_rate
     print 'batch_size:', batch_size
