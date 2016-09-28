@@ -105,13 +105,13 @@ class Colorizationnet(Chain):
         h = F.concat((h_local.data, h_global), axis=1)
         h = F.relu(self.fnorm(self.fusion(h), test=test))
         h = F.relu(self.cnorm1(self.cconv1(h), test=test))
-        h = F.unpooling_2d(h, 2, outsize=[15, 15])
+        h = F.unpooling_2d(h, 2, outsize=[14, 14])
         h = F.relu(self.cnorm2(self.cconv2(h), test=test))
         h = F.relu(self.cnorm3(self.cconv3(h), test=test))
-        h = F.unpooling_2d(h, 2, outsize=[29, 29])
+        h = F.unpooling_2d(h, 2, outsize=[28, 28])
         h = F.relu(self.cnorm4(self.cconv4(h), test=test))
         h = F.tanh(self.onorm(self.output(h), test=test))
-        y = F.unpooling_2d(h, 2, outsize=[58, 58])
+        y = F.unpooling_2d(h, 2, outsize=[56, 56])
         return y
 
     def forward(self, X, test):
@@ -173,10 +173,10 @@ def read_images_and_T_color(image_list, indexes):
     images = []
 
     for i in indexes:
-        rand = np.random.randint(7)
+        rand = np.random.randint(9)
         image = io.imread(image_list[i])
         image = transform.resize(image, [64, 64])
-        image = image[rand:rand+58, rand:rand+58]
+        image = image[rand:rand+56, rand:rand+56]
         images.append(image)
     X = np.stack(images, axis=0)
 
