@@ -10,7 +10,7 @@ from chainer import cuda, optimizers, Chain, serializers
 import chainer.functions as F
 import chainer.links as L
 import matplotlib.pyplot as plt
-from skimage import color, io
+from skimage import color, io, transform
 import time
 import copy
 import tqdm
@@ -105,13 +105,13 @@ class Colorizationnet(Chain):
         h = F.concat((h_local.data, h_global), axis=1)
         h = F.relu(self.fnorm(self.fusion(h), test=test))
         h = F.relu(self.cnorm1(self.cconv1(h), test=test))
-        h = F.unpooling_2d(h, 2, outsize=[14, 14])
+        h = F.unpooling_2d(h, 2, outsize=[15, 15])
         h = F.relu(self.cnorm2(self.cconv2(h), test=test))
         h = F.relu(self.cnorm3(self.cconv3(h), test=test))
-        h = F.unpooling_2d(h, 2, outsize=[28, 28])
+        h = F.unpooling_2d(h, 2, outsize=[29, 29])
         h = F.relu(self.cnorm4(self.cconv4(h), test=test))
         h = F.tanh(self.onorm(self.output(h), test=test))
-        y = F.unpooling_2d(h, 2, outsize=[56, 56])
+        y = F.unpooling_2d(h, 2, outsize=[58, 58])
         return y
 
     def forward(self, X, test):
@@ -173,7 +173,10 @@ def read_images_and_T_color(image_list, indexes):
     images = []
 
     for i in indexes:
+        rand = np.random.randint(7)
         image = io.imread(image_list[i])
+        image = transform.resize(image, [64, 64])
+        image = image[rand:rand+58, rand:rand+58]
         images.append(image)
     X = np.stack(images, axis=0)
 
@@ -192,7 +195,7 @@ if __name__ == '__main__':
     # 超パラメータ
     max_iteration = 10000  # 繰り返し回数
     learning_rate = 0.001  # 学習率
-    a = 1.0 / 300.0
+    a = 5.0 / 300.0
     batch_size = 100  # ミニバッチサイズ
     valid_size = 20000
 
