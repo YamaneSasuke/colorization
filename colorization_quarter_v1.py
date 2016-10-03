@@ -169,14 +169,32 @@ class Colorizationnet(Chain):
         return rgb_images
 
 
+def random_crop_and_flip(image_hwc, crop_size):
+    image = image_hwc
+    h_image, w_image = image.shape[:2]
+    h_crop, w_crop = crop_size
+
+    # 0以上 h_image - h_crop以下の整数乱数
+    top = np.random.randint(0, h_image - h_crop + 1)
+    left = np.random.randint(0, w_image - w_crop + 1)
+    bottom = top + h_crop
+    right = left + w_crop
+
+    image = image[top:bottom, left:right]
+
+    if np.random.rand() > 0.5:  # 半々の確率で
+        image = image[:, ::-1]  # 左右反転
+
+    return image
+
+
 def read_images_and_T_color(image_list, indexes):
     images = []
 
     for i in indexes:
-        rand = np.random.randint(9)
         image = io.imread(image_list[i])
-        image = transform.resize(image, [64, 64])
-        image = image[rand:rand+56, rand:rand+56]
+        image = transform.resize(image, (64, 64))
+        image = random_crop_and_flip(image, (56, 56))
         images.append(image)
     X = np.stack(images, axis=0)
 
