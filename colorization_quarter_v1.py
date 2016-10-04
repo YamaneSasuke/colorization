@@ -213,7 +213,7 @@ if __name__ == '__main__':
     # 超パラメータ
     max_iteration = 10000  # 繰り返し回数
     learning_rate = 0.001  # 学習率
-    a = 5.0 / 300.0
+    a = 1.0 / 300.0
     batch_size = 100  # ミニバッチサイズ
     valid_size = 20000
 
