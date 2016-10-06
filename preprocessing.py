@@ -8,6 +8,7 @@ Created on Tue Sep 06 16:14:41 2016
 import os
 from skimage import io, transform
 import numpy as np
+import tqdm
 
 
 def build_resized_dataset(output_size=224, data_location='', quality=100):
@@ -20,7 +21,6 @@ def build_resized_dataset(output_size=224, data_location='', quality=100):
         os.makedirs(output_root_dir)
 
     f_file = open("file_list.txt", "r")
-    f_path = open("random_file_path.txt", "w")
     paths = []
     sava_path_list = []
     for path in f_file:
@@ -29,7 +29,7 @@ def build_resized_dataset(output_size=224, data_location='', quality=100):
 
     random_paths = np.random.permutation(paths)
 
-    for path in random_paths:
+    for path in tqdm.tqdm(random_paths):
         path = path.strip()
         dirs = path.split('\\')
         file_name = dirs[-1]
@@ -46,13 +46,14 @@ def build_resized_dataset(output_size=224, data_location='', quality=100):
         io.imsave(save_path, image_resized, quality=quality)
     f_file.close()
 
+    f_path = open("random_file_path.txt", "w")
     for path in sava_path_list:
         f_path.write(path + "\n")
     f_path.close()
 
 if __name__ == '__main__':
     output_size = 56
-    data_location = r'\Users\yamane\Desktop\dataset'
+    data_location = r'E:'
     quality = 100
 
     build_resized_dataset(output_size, data_location, quality)
