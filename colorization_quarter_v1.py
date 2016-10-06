@@ -232,7 +232,7 @@ if __name__ == '__main__':
     optimizer = optimizers.AdaDelta(learning_rate)
     optimizer.setup(model)
 
-    f = open("random_file_path.txt", "r")
+    f = open(r"hdd/random_file_path.txt", "r")
     for path in f:
         path = path.strip()
         dirs = path.split('\\')
