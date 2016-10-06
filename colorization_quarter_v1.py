@@ -232,11 +232,11 @@ if __name__ == '__main__':
     optimizer = optimizers.AdaDelta(learning_rate)
     optimizer.setup(model)
 
-    f = open(r"hdd/random_file_path.txt", "r")
+    f = open("random_file_path.txt", "r")
     for path in f:
         path = path.strip()
         dirs = path.split('\\')
-        images256_index = dirs.index('resized_dataset_random_save_56')
+        images256_index = dirs.index('E:resized_dataset_random_save_56')
         image_list.append(path)
         class_list.append('_'.join(dirs[images256_index+2:-1]))
     f.close()
@@ -274,72 +274,72 @@ if __name__ == '__main__':
                         train_image_list, indexes)
                 T_class_batch = cuda.to_gpu(T_class_train[indexes])
                 # 勾配を初期化s
-                optimizer.zero_grads()
-                # 順伝播を計算し、誤差と精度を取得
-                loss, loss_color, loss_class = model.lossfun(
-                        X_batch, T_color_batch, T_class_batch, a, False)
-                # 逆伝搬を計算
-                loss.backward()
-                optimizer.update()
-                loss = cuda.to_cpu(loss.data)
-                loss_color = cuda.to_cpu(loss_color.data)
-                loss_class = cuda.to_cpu(loss_class.data)
-
-                losses.append(loss)
-                loss_colors.append(loss_color)
-                loss_classes.append(loss_class * a)
+#                optimizer.zero_grads()
+#                # 順伝播を計算し、誤差と精度を取得
+#                loss, loss_color, loss_class = model.lossfun(
+#                        X_batch, T_color_batch, T_class_batch, a, False)
+#                # 逆伝搬を計算
+#                loss.backward()
+#                optimizer.update()
+#                loss = cuda.to_cpu(loss.data)
+#                loss_color = cuda.to_cpu(loss_color.data)
+#                loss_class = cuda.to_cpu(loss_class.data)
+#
+#                losses.append(loss)
+#                loss_colors.append(loss_color)
+#                loss_classes.append(loss_class * a)
 
             time_end = time.time()
             epoch_time = time_end - time_begin
             total_time = time_end - time_origin
-            epoch_loss.append(np.mean(losses))
-            epoch_loss_color.append(np.mean(loss_colors))
-            epoch_loss_class.append(np.mean(loss_classes))
-
-            loss_valid, loss_color_valid, loss_class_valid = model.loss_ave(
-                    valid_image_list, T_class_valid, num_batches, a, False)
-
-            epoch_valid_loss.append(loss_valid)
-            epoch_valid_loss_color.append(loss_color_valid)
-            epoch_valid_loss_class.append(loss_class_valid * a)
-
-            if loss_valid < loss_valid_best:
-                loss_valid_best = loss_valid
-                epoch_best = epoch
-                model_best = copy.deepcopy(model)
+#            epoch_loss.append(np.mean(losses))
+#            epoch_loss_color.append(np.mean(loss_colors))
+#            epoch_loss_class.append(np.mean(loss_classes))
+#
+#            loss_valid, loss_color_valid, loss_class_valid = model.loss_ave(
+#                    valid_image_list, T_class_valid, num_batches, a, False)
+#
+#            epoch_valid_loss.append(loss_valid)
+#            epoch_valid_loss_color.append(loss_color_valid)
+#            epoch_valid_loss_class.append(loss_class_valid * a)
+#
+#            if loss_valid < loss_valid_best:
+#                loss_valid_best = loss_valid
+#                epoch_best = epoch
+#                model_best = copy.deepcopy(model)
 
             # 訓練データでの結果を表示
             print "epoch:", epoch
             print "time", epoch_time, "(", total_time, ")"
-            print "loss[train]:", epoch_loss[epoch]
-            print "loss_color[train]:", epoch_loss_color[epoch]
-            print "loss_class * a[train]:", epoch_loss_class[epoch]
-            print "loss[valid]:", loss_valid
-            print "loss[valid_best]:", loss_valid_best
-            print "loss_color[valid]:", loss_color_valid
-            print "loss_class * a[valid]:", loss_class_valid * a
-
-            plt.plot(epoch_loss)
-            plt.plot(epoch_loss_color)
-            plt.plot(epoch_loss_class)
-            plt.title("loss_train")
-            plt.legend(["loss", "color", "class"], loc="upper right")
-            plt.grid()
-            plt.show()
-
-            plt.plot(epoch_valid_loss)
-            plt.plot(epoch_valid_loss_color)
-            plt.plot(epoch_valid_loss_class)
-            plt.title("loss_valid")
-            plt.legend(["loss", "color", "class"], loc="upper right")
-            plt.grid()
-            plt.show()
+#            print "loss[train]:", epoch_loss[epoch]
+#            print "loss_color[train]:", epoch_loss_color[epoch]
+#            print "loss_class * a[train]:", epoch_loss_class[epoch]
+#            print "loss[valid]:", loss_valid
+#            print "loss[valid_best]:", loss_valid_best
+#            print "loss_color[valid]:", loss_color_valid
+#            print "loss_class * a[valid]:", loss_class_valid * a
+#
+#            plt.plot(epoch_loss)
+#            plt.plot(epoch_loss_color)
+#            plt.plot(epoch_loss_class)
+#            plt.title("loss_train")
+#            plt.legend(["loss", "color", "class"], loc="upper right")
+#            plt.grid()
+#            plt.show()
+#
+#            plt.plot(epoch_valid_loss)
+#            plt.plot(epoch_valid_loss_color)
+#            plt.plot(epoch_valid_loss_class)
+#            plt.title("loss_valid")
+#            plt.legend(["loss", "color", "class"], loc="upper right")
+#            plt.grid()
+#            plt.show()
 
     except KeyboardInterrupt:
         print "割り込み停止が実行されました"
 
-    model_filename = 'model' + str(time.time()) + '.npz'
-    serializers.save_npz(model_filename, model_best)
+#    model_filename = 'model' + str(time.time()) + '.npz'
+#    serializers.save_npz(model_filename, model_best)
 
     print 'max_iteration:', max_iteration
     print 'learning_rate:', learning_rate
