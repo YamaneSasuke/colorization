@@ -37,10 +37,10 @@ def create_path_list(data_location, dataset_root_dir):
     return path_list
 
 
-def output_path_list(path_list, output_root_dir, image_size):
+def output_path_list(path_list, output_root_dir):
     dirs = output_root_dir.split('\\')
     file_name = dirs[-1] + '.txt'
-    output_root_dir = os.path.join(output_dir_name, file_name)
+    output_root_dir = os.path.join(output_root_dir, file_name)
 
     path_list = np.random.permutation(path_list)
 
@@ -58,7 +58,7 @@ def output_hdf5(path_list, data_chw, test_size, output_root_dir):
 
     dirs = output_root_dir.split('\\')
     file_name = dirs[-1] + '.hdf5'
-    output_root_dir = os.path.join(output_dir_name, file_name)
+    output_root_dir = os.path.join(output_root_dir, file_name)
 
     f = h5py.File(output_root_dir, mode='w')
     image_features = f.create_dataset('image_features',
@@ -72,8 +72,8 @@ def output_hdf5(path_list, data_chw, test_size, output_root_dir):
     try:
         for i in tqdm.tqdm(range(num_data)):
             image = io.imread(path_list[i])
-            image = np.transpose(image, (2, 0, 1))
             image = transform.resize(image, (height, width))
+            image = np.transpose(image, (2, 0, 1))
             image = np.reshape(image, (1, channel, height, width))
             image_features[i] = image
 
@@ -90,12 +90,12 @@ def output_hdf5(path_list, data_chw, test_size, output_root_dir):
 
 if __name__ == '__main__':
     data_location = r'E:'
+    output_location = r'E:\raw_dataset'
     output_size = 56
     test_size = 20000
     data_chw = (3, output_size, output_size)
 
     dataset_root_dir = r'data\vision\torralba\deeplearning\images256'
-    output_location = r'E:\raw_dataset'
     output_dir_name = 'raw_dataset_' + str(output_size)
     output_root_dir = os.path.join(output_location, output_dir_name)
 
