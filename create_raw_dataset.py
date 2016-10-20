@@ -20,7 +20,7 @@ def rgb_hwc2hsv_chw(image):
     return hsv_chw
 
 
-def create_path_list(data_location, dataset_root_dir):
+def create_path_list(data_location, dataset_root_dir, threshold):
     path_list = []
     root_dir_path = os.path.join(data_location, dataset_root_dir)
 
@@ -32,7 +32,7 @@ def create_path_list(data_location, dataset_root_dir):
                 continue
             hsv_chw = rgb_hwc2hsv_chw(image)
             s = hsv_chw[1]
-            if s.std() >= 0.20:
+            if s.std() >= threshold:
                 path_list.append(file_path)
     return path_list
 
@@ -41,8 +41,6 @@ def output_path_list(path_list, output_root_dir):
     dirs = output_root_dir.split('\\')
     file_name = dirs[-1] + '.txt'
     output_root_dir = os.path.join(output_root_dir, file_name)
-
-    path_list = np.random.permutation(path_list)
 
     f = open(output_root_dir, "w")
     for path in path_list:
@@ -94,6 +92,7 @@ if __name__ == '__main__':
     output_size = 56
     test_size = 20000
     data_chw = (3, output_size, output_size)
+    threshold = 0.20
 
     dataset_root_dir = r'data\vision\torralba\deeplearning\images256'
     output_dir_name = 'raw_dataset_' + str(output_size)
@@ -105,6 +104,10 @@ if __name__ == '__main__':
     else:
         os.makedirs(output_root_dir)
 
-    path_list = create_path_list(data_location, dataset_root_dir)
-    output_path_list(path_list, output_root_dir)
-    output_hdf5(path_list, data_chw, test_size, output_root_dir)
+    path_list = create_path_list(data_location, dataset_root_dir, threshold)
+
+    shuffled_path_list = np.random.permutation(path_list)
+
+    output_path_list(shuffled_path_list, output_root_dir)
+
+    output_hdf5(shuffled_path_list, data_chw, test_size, output_root_dir)
