@@ -86,17 +86,11 @@ def output_hdf5(path_list, data_chw, test_size, output_root_dir):
     f.close()
 
 
-if __name__ == '__main__':
-    data_location = r'E:'
-    output_location = r'E:\raw_dataset'
-    output_size = 56
-    test_size = 20000
-    data_chw = (3, output_size, output_size)
-    threshold = 0.20
-
+def main(data_location, output_location, output_size, test_size, threshold):
     dataset_root_dir = r'data\vision\torralba\deeplearning\images256'
     output_dir_name = 'raw_dataset_' + str(output_size)
     output_root_dir = os.path.join(output_location, output_dir_name)
+    data_chw = (3, output_size, output_size)
 
     if os.path.exists(output_root_dir):
         print u"すでに存在するため終了します."
@@ -105,9 +99,16 @@ if __name__ == '__main__':
         os.makedirs(output_root_dir)
 
     path_list = create_path_list(data_location, dataset_root_dir, threshold)
-
     shuffled_path_list = np.random.permutation(path_list)
-
     output_path_list(shuffled_path_list, output_root_dir)
-
     output_hdf5(shuffled_path_list, data_chw, test_size, output_root_dir)
+
+
+if __name__ == '__main__':
+    data_location = r'E:'
+    output_location = r'E:\raw_dataset'
+    output_size = 56
+    test_size = 20000
+    threshold = 0.20
+
+    main(data_location, output_location, output_size, test_size, threshold)
