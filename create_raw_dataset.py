@@ -18,10 +18,13 @@ if __name__ == '__main__':
     height = 56
     width = 56
     test_size = 20000
+    text_file_path = r'C:\Users\yamane\Dropbox\colorization\random_file_path.txt'
+    hdf5_save_path = r'E:\raw_resized_dataset_random_save_56\raw_dataset_56.hdf5'
 
     image_list = []
     images = []
-    f = open(r"C:\Users\yamane\Dropbox\colorization\random_file_path.txt", "r")
+
+    f = open(text_file_path, "r")
     for path in f:
         path = path.strip()
         image_list.append(path)
@@ -30,9 +33,7 @@ if __name__ == '__main__':
     num_images = len(image_list)
     num_train = num_images - test_size
 
-    f = h5py.File(r'E:\raw_resized_dataset_random_save_56\raw_dataset_56.hdf5',
-                  mode='w')
-
+    f = h5py.File(hdf5_save_path, mode='w')
     image_features = f.create_dataset('image_features',
                                       (num_images, channel, height, width),
                                       dtype='uint8')
@@ -54,7 +55,6 @@ if __name__ == '__main__':
     split_dict = {
             'train': {'image_features': (0, num_train)},
             'test': {'image_features': (num_train, num_images)}}
-
     f.attrs['split'] = H5PYDataset.create_split_array(split_dict)
     f.flush()
     f.close()
