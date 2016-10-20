@@ -8,6 +8,7 @@ Created on Mon Sep 05 17:59:14 2016
 import os
 import numpy as np
 from skimage import color, io
+import tqdm
 
 
 def rgb_hwc2hsv_chw(image):
@@ -17,12 +18,12 @@ def rgb_hwc2hsv_chw(image):
 
 
 if __name__ == '__main__':
-    data_location = r'C:\Users\yamane\Desktop\dataset'
+    data_location = r'E:'
     dataset_root_dir = r'data\vision\torralba\deeplearning\images256'
     root_dir_path = os.path.join(data_location, dataset_root_dir)
     f = open("file_list.txt", "w")
     for root, dirs, files in os.walk(root_dir_path):
-        for file_name in files:
+        for file_name in tqdm.tqdm(files):
             file_path = os.path.join(root, file_name)
             image = io.imread(file_path)
             if len(image.shape) == 2:
