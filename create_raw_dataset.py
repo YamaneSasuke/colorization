@@ -73,6 +73,7 @@ def output_hdf5(path_list, data_chw, test_size, output_root_dir):
             image = transform.resize(image, (height, width))
             image = np.transpose(image, (2, 0, 1))
             image = np.reshape(image, (1, channel, height, width))
+            image = image * 256
             image_features[i] = image
 
     except KeyboardInterrupt:
@@ -86,11 +87,12 @@ def output_hdf5(path_list, data_chw, test_size, output_root_dir):
     f.close()
 
 
-def main(data_location, output_location, output_size, test_size, threshold):
+def main(data_location, output_location, output_size, test_size):
     dataset_root_dir = r'data\vision\torralba\deeplearning\images256'
     output_dir_name = 'raw_dataset_' + str(output_size)
     output_root_dir = os.path.join(output_location, output_dir_name)
     data_chw = (3, output_size, output_size)
+    threshold = 0.20
 
     if os.path.exists(output_root_dir):
         print u"すでに存在するため終了します."
@@ -109,6 +111,5 @@ if __name__ == '__main__':
     output_location = r'E:\raw_dataset'
     output_size = 56
     test_size = 20000
-    threshold = 0.20
 
-    main(data_location, output_location, output_size, test_size, threshold)
+    main(data_location, output_location, output_size, test_size)
