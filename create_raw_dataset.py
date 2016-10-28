@@ -48,9 +48,9 @@ def output_path_list(path_list, output_root_dir):
     f.close()
 
 
-def output_hdf5(path_list, data_chw, test_size, output_root_dir):
+def output_hdf5(path_list, data_chw, output_root_dir):
     num_data = len(path_list)
-    num_train = num_data - test_size
+    class_list = []
 
     channel, height, width = data_chw
 
@@ -62,10 +62,20 @@ def output_hdf5(path_list, data_chw, test_size, output_root_dir):
     image_features = f.create_dataset('image_features',
                                       (num_data, channel, height, width),
                                       dtype='uint8')
+    targets = f.create_dataset('targets', (num_data,), dtype='uint8')
+
     image_features.dims[0].label = 'batch'
     image_features.dims[1].label = 'channel'
     image_features.dims[2].label = 'height'
     image_features.dims[3].label = 'width'
+    targets.dims[0].label = 'batch'
+
+    for path in path_list:
+        path = path.strip()
+        dirs = path.split('\\')
+        images256_index = dirs.index('images256')
+        class_list.append('_'.join(dirs[images256_index+2:-1]))
+    class_uniq = list(set(class_list))
 
     try:
         for i in tqdm.tqdm(range(num_data)):
@@ -75,14 +85,11 @@ def output_hdf5(path_list, data_chw, test_size, output_root_dir):
             image = np.reshape(image, (1, channel, height, width))
             image = image * 256
             image_features[i] = image
+            targets[i] = class_uniq.index(class_list[i])
 
     except KeyboardInterrupt:
         print "割り込み停止が実行されました"
 
-    split_dict = {
-            'train': {'image_features': (0, num_train)},
-            'test': {'image_features': (num_train, num_data)}}
-    f.attrs['split'] = H5PYDataset.create_split_array(split_dict)
     f.flush()
     f.close()
 
@@ -103,13 +110,12 @@ def main(data_location, output_location, output_size, test_size):
     path_list = create_path_list(data_location, dataset_root_dir, threshold)
     shuffled_path_list = np.random.permutation(path_list)
     output_path_list(shuffled_path_list, output_root_dir)
-    output_hdf5(shuffled_path_list, data_chw, test_size, output_root_dir)
+    output_hdf5(shuffled_path_list, data_chw, output_root_dir)
 
 
 if __name__ == '__main__':
     data_location = r'E:'
     output_location = r'E:\raw_dataset'
     output_size = 56
-    test_size = 20000
 
-    main(data_location, output_location, output_size, test_size)
+    main(data_location, output_location, output_size)
