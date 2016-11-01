@@ -11,6 +11,7 @@ import chainer.functions as F
 import chainer.links as L
 import matplotlib.pyplot as plt
 from skimage import color, io, transform
+import h5py
 import time
 import copy
 import tqdm
@@ -128,13 +129,13 @@ class Colorizationnet(Chain):
         loss = loss_color + (a * loss_class)
         return loss, loss_color, loss_class
 
-    def loss_ave(self, image_list, T_class, num_batches, a, test):
+    def loss_ave(self, image_features, T_class, num_batches, a, test):
         losses = []
         loss_colors = []
         loss_classes = []
-        total_data = np.arange(len(image_list))
+        total_data = np.arange(num_train, len(image_features))
         for indexes in np.array_split(total_data, num_batches):
-            X_batch, T_color_batch = read_images_and_T_color(image_list,
+            X_batch, T_color_batch = read_images_and_T_color(image_features,
                                                              indexes)
             T_class_batch = cuda.to_gpu(T_class[indexes])
             loss, loss_color, loss_class = self.lossfun(X_batch,
@@ -188,11 +189,12 @@ def random_crop_and_flip(image_hwc, crop_size):
     return image
 
 
-def read_images_and_T_color(image_list, indexes):
+def read_images_and_T_color(image_features, indexes):
     images = []
 
     for i in indexes:
-        image = io.imread(image_list[i])
+        image = image_features[i]
+        image = np.transpose(image, (1, 2, 0))
         image = transform.resize(image, (64, 64))
         image = random_crop_and_flip(image, (56, 56))
         images.append(image)
@@ -209,6 +211,8 @@ def read_images_and_T_color(image_list, indexes):
 
     return cuda.to_gpu(X_l_float32), cuda.to_gpu(T_color)
 
+# @profile
+#def main():
 if __name__ == '__main__':
     # 超パラメータ
     max_iteration = 10000  # 繰り返し回数
@@ -232,11 +236,11 @@ if __name__ == '__main__':
     optimizer = optimizers.AdaDelta(learning_rate)
     optimizer.setup(model)
 
-    f = open("random_file_path.txt", "r")
+    f = open(r'E:\raw_dataset\raw_dataset_56\raw_dataset_56.txt', "r")
     for path in f:
         path = path.strip()
         dirs = path.split('\\')
-        images256_index = dirs.index('E:resized_dataset_random_save_56')
+        images256_index = dirs.index('images256')
         image_list.append(path)
         class_list.append('_'.join(dirs[images256_index+2:-1]))
     f.close()
@@ -254,10 +258,10 @@ if __name__ == '__main__':
     T_class_train = T_class[:-valid_size].astype(np.int32)
     T_class_valid = T_class[-valid_size:].astype(np.int32)
 
-    train_image_list = image_list[:-valid_size]
-    valid_image_list = image_list[-valid_size:]
+    dataset = h5py.File(r'E:\raw_dataset\raw_dataset_56\raw_dataset_56.hdf5')
+    image_features = dataset['image_features']
 
-    num_train = len(train_image_list)
+    num_train = len(image_features) - valid_size
     num_batches = num_train / batch_size
 
     time_origin = time.time()
@@ -271,7 +275,7 @@ if __name__ == '__main__':
             loss_classes = []
             for indexes in tqdm.tqdm(np.array_split(permu, num_batches)):
                 X_batch, T_color_batch = read_images_and_T_color(
-                        train_image_list, indexes)
+                        image_features, indexes)
                 T_class_batch = cuda.to_gpu(T_class_train[indexes])
                 # 勾配を初期化s
 #                optimizer.zero_grads()
@@ -297,7 +301,8 @@ if __name__ == '__main__':
 #            epoch_loss_class.append(np.mean(loss_classes))
 #
 #            loss_valid, loss_color_valid, loss_class_valid = model.loss_ave(
-#                    valid_image_list, T_class_valid, num_batches, a, False)
+#                    image_features, num_train, T_class_valid,
+#                    num_batches, a, False)
 #
 #            epoch_valid_loss.append(loss_valid)
 #            epoch_valid_loss_color.append(loss_color_valid)
@@ -346,3 +351,4 @@ if __name__ == '__main__':
     print 'batch_size:', batch_size
     print 'num_train', num_train
     print 'a:', a
+#main()
